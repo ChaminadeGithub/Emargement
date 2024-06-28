@@ -1,104 +1,56 @@
 <?php
-include 'config.php';
+// Connexion à la base de données avec PDO
+$servername = "localhost";
+$username = "root"; // Remplacez par votre nom d'utilisateur MySQL
+$password = ""; // Remplacez par votre mot de passe MySQL
+$dbname = "educheck";
 
-// Définir les en-têtes pour permettre les requêtes CORS et les requêtes de type JSON
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST, GET, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Obtenir la méthode HTTP utilisée pour la requête
-$method = $_SERVER['REQUEST_METHOD'];
+    // Déterminez la méthode HTTP
+    $method = $_SERVER['REQUEST_METHOD'];
 
-// Switch basé sur la méthode HTTP
-switch ($method) {
-    case 'GET':
-        if (isset($_GET['id'])) {
-            // Récupérer un utilisateur par ID
-            $id = $_GET['id'];
-            $sql = "SELECT * FROM utilisateurs WHERE Id_utilisateurs = $id";
-            $result = $conn->query($sql);
-            if ($result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                echo json_encode($row);
-            } else {
-                echo json_encode(["message" => "Utilisateur non trouvé"]);
+    // Effectuez différentes actions en fonction de la méthode
+    switch ($method) {
+        case 'POST':
+            // Créer un nouvel utilisateur
+            $data = json_decode(file_get_contents("php://input"));
+
+            // Validation des données
+            if (empty($data->nom) || empty($data->email) || empty($data->motpasse) || empty($data->Id_role)) {
+                echo json_encode(["message" => "Veuillez remplir tous les champs."]);
+                exit;
             }
-        } else {
-            // Récupérer tous les utilisateurs
-            $sql = "SELECT * FROM utilisateurs";
-            $result = $conn->query($sql);
-            $users = [];
-            while($row = $result->fetch_assoc()) {
-                $users[] = $row;
-            }
-            echo json_encode($users);
-        }
-        break;
-        
-    case 'POST':
-        // Créer un nouvel utilisateur
-        $data = json_decode(file_get_contents("php://input"));
-        $nom = $data->nom;
-        $prenoms = $data->prenoms;
-        $telephone = $data->telephone;
-        $email = $data->email;
-        $adresse = $data->adresse;
-        $motpass = password_hash($data->motpass, PASSWORD_BCRYPT); // Hash du mot de passe
-        $Id_roles = $data->Id_roles;
-        $Id_confirmations = $data->Id_confirmations;
-        
-        $sql = "INSERT INTO utilisateurs (nom, prenoms, telephone, email, adresse, motpass, Id_roles, Id_confirmations) VALUES ('$nom', '$prenoms', '$telephone', '$email', '$adresse', '$motpass', $Id_roles, $Id_confirmations)";
-        
-        if ($conn->query($sql) === TRUE) {
+
+            $nom = $data->nom;
+            $email = $data->email;
+            $motpasse = $data->motpasse;
+            $Id_role = $data->Id_role;
+
+            $sql = "INSERT INTO utilisateurs (nom, email, motpasse, Id_role) VALUES (:nom, :email, :motpasse, :Id_role)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':nom', $nom);
+            $stmt->bindParam(':email', $email);
+            $stmt->bindParam(':motpasse', $motpasse);
+            $stmt->bindParam(':Id_role', $Id_role);
+
+            $stmt->execute();
+
             echo json_encode(["message" => "Utilisateur créé avec succès"]);
-        } else {
-            echo json_encode(["message" => "Erreur lors de la création de l'utilisateur: " . $conn->error]);
-        }
-        break;
-        
-    case 'PUT':
-        // Mettre à jour un utilisateur existant
-        $data = json_decode(file_get_contents("php://input"));
-        $id = $data->id;
-        $nom = $data->nom;
-        $prenoms = $data->prenoms;
-        $telephone = $data->telephone;
-        $email = $data->email;
-        $adresse = $data->adresse;
-        $motpass = password_hash($data->motpass, PASSWORD_BCRYPT); // Hash du mot de passe
-        $Id_roles = $data->Id_roles;
-        $Id_confirmations = $data->Id_confirmations;
-        
-        $sql = "UPDATE utilisateurs SET nom='$nom', prenoms='$prenoms', telephone='$telephone', email='$email', adresse='$adresse', motpass='$motpass', Id_roles='$Id_roles', Id_confirmations='$Id_confirmations' WHERE Id_utilisateurs='$id'";
-        
-        if ($conn->query($sql) === TRUE) {
-            echo json_encode(["message" => "Utilisateur mis à jour avec succès"]);
-        } else {
-            echo json_encode(["message" => "Erreur lors de la mise à jour de l'utilisateur: " . $conn->error]);
-        }
-        break;
-        
-    case 'DELETE':
-        // Supprimer un utilisateur par ID
-        if (isset($_GET['id'])) {
-            $id = $_GET['id'];
-            $sql = "DELETE FROM utilisateurs WHERE Id_utilisateurs = $id";
-            
-            if ($conn->query($sql) === TRUE) {
-                echo json_encode(["message" => "Utilisateur supprimé avec succès"]);
-            } else {
-                echo json_encode(["message" => "Erreur lors de la suppression de l'utilisateur: " . $conn->error]);
-            }
-        }
-        break;
-        
-    default:
-        // Méthode non autorisée
-        header("HTTP/1.1 405 Method Not Allowed");
-        break;
+            break;
+
+        // Ajoutez d'autres méthodes (GET, PUT, DELETE) ici si nécessaire
+
+        default:
+            echo json_encode(["message" => "Méthode non supportée"]);
+            break;
+    }
+} catch(PDOException $e) {
+    echo json_encode(["message" => "Erreur de connexion à la base de données: " . $e->getMessage()]);
 }
 
-// Fermer la connexion
-$conn->close();
+// Fermez la connexion
+$conn = null;
 ?>
